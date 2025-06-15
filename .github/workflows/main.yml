@@ -1,0 +1,91 @@
+---
+name: Build SpargeAttn Wheels (Windows)
+on:
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  install-deps:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.9"
+        cuda-version:
+          - "12.4.0"  # Обновлено до совместимой версии
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Setup MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@v3
+        with:
+          arch: x64
+          export-path-to-vcvarsall: true
+          export-path-to-vs: true
+          
+      - name: Set Visual Studio environment variables
+        shell: pwsh
+        run: |
+          echo "DISTUTILS_USE_SDK=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "MSSdk=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "CMAKE_GENERATOR=Ninja" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        uses: Jimver/cuda-toolkit@v0.2.24
+        with:
+          cuda: ${{ matrix.cuda-version }}
+          sub-packages: '["nvcc", "cudart", "cublas", "curand", "cusparse", "cufft"]'
+          use-local-cache: false
+          use-github-cache: false
+          method: network
+          
+      - name: Configure CUDA paths
+        shell: pwsh
+        run: |
+          $cudaVersion = "${{ matrix.cuda-version }}"
+          $cudaMajorMinor = $cudaVersion -replace '(\d+\.\d+)\..*', '$1'
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaMajorMinor"
+          echo "CUDA_PATH=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "CUDA_HOME=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "PATH=$cudaPath\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools wheel ninja
+          pip install torch==2.4.0+cu124 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+          pip install triton-windows
+          pip install -r requirements.txt
+          
+      - name: Build wheel
+        shell: pwsh
+        env:
+          DISTUTILS_USE_SDK: "1"
+          MSSdk: "1"
+          TORCH_CUDA_ARCH_LIST: "8.0"
+          CMAKE_GENERATOR: "Ninja"
+        run: |
+          python setup.py bdist_wheel --verbose
+          
+      - name: Test installation
+        shell: pwsh
+        run: |
+          $wheelFile = Get-ChildItem dist\*.whl | Select-Object -First 1
+          pip install $wheelFile.FullName
+          python -c "import spas_sage_attn; print(f'Version: {spas_sage_attn.__version__}')"
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spargeattn-win-py${{ matrix.python-version }}-cu${{ matrix.cuda-version }}
+          path: dist/*.whl
