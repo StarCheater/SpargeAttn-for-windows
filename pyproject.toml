@@ -1,0 +1,49 @@
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+    "torch>=2.3.0",
+    "ninja",
+    "packaging",
+    "pybind11>=2.12.0",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spas_sage_attn"
+dynamic = ["version"]
+description = "Universal sparse attention for accelerating inference without additional training"
+authors = [{name = "SpargeAttn team"}]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.3.0",
+    "ninja",
+    "packaging",
+    "pybind11>=2.12.0",
+]
+keywords = ["attention", "sparse", "cuda", "pytorch", "machine learning"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10", 
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/StarCheater/SpargeAttn-for-windows"
+Repository = "https://github.com/StarCheater/SpargeAttn-for-windows"
+Issues = "https://github.com/StarCheater/SpargeAttn-for-windows/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "spas_sage_attn.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["spas_sage_attn*"]
