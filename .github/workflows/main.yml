@@ -79,6 +79,12 @@ jobs:
             MSSdk=1
             SPARGEATTN_CUDA_ARCH_LIST="8.0"
             SPARGEATTN_WHEEL_VERSION_SUFFIX="+cu124+torch2.4.0"
+            CUDA_HOME="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+            CUDA_PATH="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            echo "CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV &&
+            echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV
+          CIBW_BUILD_FRONTEND: "pip; args=--no-build-isolation"
           CIBW_TEST_COMMAND: >
             python -c "import spas_sage_attn; print('SpargeAttn import successful')"
 
