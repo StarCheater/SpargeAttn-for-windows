@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.9"
+          - "3.9.13"
         cuda-version:
           - "12.4.0"  # Обновлено до совместимой версии
       fail-fast: false
@@ -71,14 +71,14 @@ jobs:
         uses: pypa/cibuildwheel@v2.19.0
         env:
           CIBW_PLATFORM: windows
-          CIBW_BUILD: "cp${{ matrix.python-version }}-*"
+          CIBW_BUILD: "cp39-*"
           CIBW_SKIP: "*-win32"
           CIBW_ARCHS_WINDOWS: "AMD64"
           CIBW_ENVIRONMENT_WINDOWS: >
             DISTUTILS_USE_SDK=1
             MSSdk=1
             SPARGEATTN_CUDA_ARCH_LIST="8.0"
-            SPARGEATTN_WHEEL_VERSION_SUFFIX="+cu124torch2.4.0"
+            SPARGEATTN_WHEEL_VERSION_SUFFIX="+cu124+torch2.4.0"
           CIBW_TEST_COMMAND: >
             python -c "import spas_sage_attn; print('SpargeAttn import successful')"
 
