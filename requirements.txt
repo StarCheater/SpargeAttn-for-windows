@@ -1,14 +1,18 @@
-torch
+torch>=2.3.0
 torchvision
-transformers
-diffusers
+transformers>=4.20.0
+diffusers>=0.21.0
 opencv-python
 einops
 protobuf
 sentencepiece
 ninja
-accelerate
-numpy
+accelerate>=0.20.0
+numpy>=1.21.0
+packaging
+pybind11>=2.12.0
+triton-windows; sys_platform == "win32"
+triton; sys_platform != "win32"
 gradio
 imageio
 imageio-ffmpeg
