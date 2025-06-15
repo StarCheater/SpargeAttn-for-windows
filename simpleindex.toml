@@ -1,0 +1,10 @@
+[tool.simpleindex]
+enabled = true
+
+[[tool.simpleindex.distributions]]
+name = "torch"
+extra_index_urls = [
+    "https://download.pytorch.org/whl/cu124",
+    "https://download.pytorch.org/whl/cu126", 
+    "https://download.pytorch.org/whl/cu128",
+]
