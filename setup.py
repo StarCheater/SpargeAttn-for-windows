@@ -1,261 +1,160 @@
-"""
-Copyright (c) 2025 by SpargeAttn team.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
 import os
-from pathlib import Path
-import subprocess
-from packaging.version import parse, Version
-from typing import List, Set
+import sys
+import platform
 import warnings
+from pathlib import Path
 
 from setuptools import setup, find_packages
-import torch
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
 
-HAS_SM80 = False
-HAS_SM86 = False
-HAS_SM87 = False
-HAS_SM89 = False
-HAS_SM90 = False
-HAS_SM100 = False
-HAS_SM101 = False
-HAS_SM110 = False
-HAS_SM120 = False
+# Определение платформы для условной компиляции
+IS_WINDOWS = sys.platform == 'win32'
 
-def run_instantiations(src_dir: str):
-    base_path = Path(src_dir)
-    py_files = [
-        path for path in base_path.rglob('*.py')
-        if path.is_file()
+# Получение версии пакета из переменной окружения или файла
+def get_version():
+    version = '1.0.0'
+    suffix = os.environ.get("SPARGEATTN_WHEEL_VERSION_SUFFIX", "")
+    return version + suffix
+
+# Проверка наличия CUDA
+if CUDA_HOME is None:
+    raise RuntimeError("CUDA_HOME environment variable is not set. Please install CUDA toolkit.")
+
+# Условные флаги компилятора для C++ с подавлением D9025
+if IS_WINDOWS:
+    # Флаги MSVC для Windows с подавлением предупреждений
+    CXX_FLAGS = [
+        '/std:c++17',      # Стандарт C++17
+        '/O2',             # Оптимизация уровня 2
+        '/MD',             # Многопоточная DLL среда выполнения
+        '/EHsc',           # Обработка исключений C++
+        '/DNOMINMAX',      # Отключение макросов min/max
+        '/W0',             # Подавление всех предупреждений (избегает D9025)
     ]
-
-    for py_file in py_files:
-        print(f"Running: {py_file}")
-        os.system(f"python {py_file}")
-
-def get_instantiations(src_dir: str):
-    # get all .cu files under src_dir
-    base_path = Path(src_dir)
-    return [
-        os.path.join(src_dir, str(path.relative_to(base_path)))
-        for path in base_path.rglob('*')
-        if path.is_file() and path.suffix == ".cu"
+    LINK_FLAGS = []
+else:
+    # Флаги GCC/Clang для Linux/Mac
+    CXX_FLAGS = [
+        '-std=c++17',      # Стандарт C++17
+        '-O3',             # Максимальная оптимизация
+        '-fopenmp',        # Поддержка OpenMP
+        '-w',              # Подавление всех предупреждений
     ]
+    LINK_FLAGS = ['-lgomp']
 
-# Supported NVIDIA GPU architectures.
-SUPPORTED_ARCHS = {"8.0", "8.6", "8.7", "8.9", "9.0"}
-
-# Compiler flags.
-CXX_FLAGS = ["-g", "-O3", "-fopenmp", "-lgomp", "-std=c++17", "-DENABLE_BF16"]
+# Базовые флаги NVCC с подавлением #177-D
 NVCC_FLAGS = [
-    "-O3",
-    "-std=c++17",
-    "-U__CUDA_NO_HALF_OPERATORS__",
-    "-U__CUDA_NO_HALF_CONVERSIONS__",
-    "--use_fast_math",
-    "--threads=8",
-    "-Xptxas=-v",
-    "-diag-suppress=174", # suppress the specific warning
+    '-std=c++17',                      # Стандарт C++17 для CUDA
+    '-O3',                             # Максимальная оптимизация
+    '-U__CUDA_NO_HALF_OPERATORS__',    # Разрешение half-операторов
+    '-U__CUDA_NO_HALF_CONVERSIONS__',  # Разрешение half-конверсий
+    '--use_fast_math',                 # Быстрые математические функции
+    '--expt-relaxed-constexpr',        # Экспериментальная поддержка constexpr
+    '--diag-suppress=177',             # Подавление предупреждения #177-D
+    '-w',                              # Подавление всех NVCC предупреждений
 ]
 
-ABI = 1 if torch._C._GLIBCXX_USE_CXX11_ABI else 0
-CXX_FLAGS += [f"-D_GLIBCXX_USE_CXX11_ABI={ABI}"]
-NVCC_FLAGS += [f"-D_GLIBCXX_USE_CXX11_ABI={ABI}"]
+# Определение compute capabilities из переменной окружения
+arch_list = os.environ.get('TORCH_CUDA_ARCH_LIST', '8.0;8.6;8.9;9.0')
+if arch_list:
+    for arch in arch_list.split(';'):
+        arch_clean = arch.replace('.', '')
+        NVCC_FLAGS.extend([
+            '-gencode', f'arch=compute_{arch_clean},code=sm_{arch_clean}'
+        ])
 
-if CUDA_HOME is None:
-    raise RuntimeError(
-        "Cannot find CUDA_HOME. CUDA must be available to build the package.")
+# Добавление флагов для verbose вывода и отладки (с подавлением предупреждений)
+if IS_WINDOWS:
+    import multiprocessing
+    num_threads = min(multiprocessing.cpu_count(), 8)
+    NVCC_FLAGS.extend([
+        f'--threads={num_threads}',    # Количество потоков компиляции
+    ])
+else:
+    NVCC_FLAGS.extend([
+        '--threads=8',
+    ])
 
-def get_nvcc_cuda_version(cuda_dir: str) -> Version:
-    """Get the CUDA version from nvcc.
+# Поиск исходных файлов проекта
+sources = []
+csrc_dir = Path(__file__).parent / 'csrc'
 
-    Adapted from https://github.com/NVIDIA/apex/blob/8b7a1ff183741dd8f9b87e7bafd04cfde99cea28/setup.py
-    """
-    nvcc_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"],
-                                          universal_newlines=True)
-    output = nvcc_output.split()
-    release_idx = output.index("release") + 1
-    nvcc_cuda_version = parse(output[release_idx].split(",")[0])
-    return nvcc_cuda_version
+# Добавление C++ исходных файлов
+cpp_files = list(csrc_dir.glob('*.cpp'))
+sources.extend([str(f) for f in cpp_files])
 
-def get_torch_arch_list() -> Set[str]:
-    # TORCH_CUDA_ARCH_LIST can have one or more architectures,
-    # e.g. "8.0" or "7.5,8.0,8.6+PTX". Here, the "8.6+PTX" option asks the
-    # compiler to additionally include PTX code that can be runtime-compiled
-    # and executed on the 8.6 or newer architectures. While the PTX code will
-    # not give the best performance on the newer architectures, it provides
-    # forward compatibility.
-    env_arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST", None)
-    if env_arch_list is None:
-        return set()
+# Добавление CUDA исходных файлов
+cu_files = list(csrc_dir.glob('*.cu'))
+sources.extend([str(f) for f in cu_files])
 
-    # List are separated by ; or space.
-    torch_arch_list = set(env_arch_list.replace(" ", ";").split(";"))
-    if not torch_arch_list:
-        return set()
+# Проверка наличия исходных файлов
+if not sources:
+    warnings.warn("No source files found in csrc directory")
+    sources = ['csrc/dummy.cpp']  # Создание заглушки если файлы не найдены
 
-    # Filter out the invalid architectures and print a warning.
-    valid_archs = SUPPORTED_ARCHS.union({s + "+PTX" for s in SUPPORTED_ARCHS})
-    arch_list = torch_arch_list.intersection(valid_archs)
-    # If none of the specified architectures are valid, raise an error.
-    if not arch_list:
-        raise RuntimeError(
-            "None of the CUDA architectures in `TORCH_CUDA_ARCH_LIST` env "
-            f"variable ({env_arch_list}) is supported. "
-            f"Supported CUDA architectures are: {valid_archs}.")
-    invalid_arch_list = torch_arch_list - valid_archs
-    if invalid_arch_list:
-        warnings.warn(
-            f"Unsupported CUDA architectures ({invalid_arch_list}) are "
-            "excluded from the `TORCH_CUDA_ARCH_LIST` env variable "
-            f"({env_arch_list}). Supported CUDA architectures are: "
-            f"{valid_archs}.")
-    return arch_list
+# Создание CUDA расширения
+ext_modules = [
+    CUDAExtension(
+        name='spas_sage_attn._C',      # Имя модуля расширения
+        sources=sources,               # Список исходных файлов
+        include_dirs=[                 # Директории заголовочных файлов
+            str(csrc_dir),
+            str(Path(__file__).parent / 'spas_sage_attn')
+        ],
+        extra_compile_args={           # Дополнительные флаги компиляции
+            'cxx': CXX_FLAGS,          # Флаги для C++ компилятора
+            'nvcc': NVCC_FLAGS         # Флаги для NVCC компилятора
+        },
+        extra_link_args=LINK_FLAGS,    # Флаги линковки
+        define_macros=[                # Макросы препроцессора
+            ('WITH_CUDA', None),       # Включение CUDA поддержки
+            ('TORCH_EXTENSION_NAME', 'spas_sage_attn._C')
+        ]
+    )
+]
 
-# First, check the TORCH_CUDA_ARCH_LIST environment variable.
-compute_capabilities = get_torch_arch_list()
-if not compute_capabilities:
-    # If TORCH_CUDA_ARCH_LIST is not defined or empty, target all available
-    # GPUs on the current machine.
-    device_count = torch.cuda.device_count()
-    for i in range(device_count):
-        major, minor = torch.cuda.get_device_capability(i)
-        if major < 8:
-            raise RuntimeError(
-                "GPUs with compute capability below 8.0 are not supported.")
-        compute_capabilities.add(f"{major}.{minor}")
+# Чтение README файла для описания пакета
+readme_path = Path(__file__).parent / 'README.md'
+long_description = ''
+if readme_path.exists():
+    with open(readme_path, 'r', encoding='utf-8') as f:
+        long_description = f.read()
 
-nvcc_cuda_version = get_nvcc_cuda_version(CUDA_HOME)
-if not compute_capabilities:
-    raise RuntimeError("No GPUs found. Please specify the target GPU architectures or build on a machine with GPUs.")
-
-# Validate the NVCC CUDA version.
-if nvcc_cuda_version < Version("12.0"):
-    raise RuntimeError("CUDA 12.0 or higher is required to build the package.")
-if nvcc_cuda_version < Version("12.4"):
-    if any(cc.startswith("8.9") for cc in compute_capabilities):
-        raise RuntimeError(
-            "CUDA 12.4 or higher is required for compute capability 8.9.")
-    if any(cc.startswith("9.0") for cc in compute_capabilities):
-        raise RuntimeError(
-            "CUDA 12.4 or higher is required for compute capability 9.0.")
-
-# Add target compute capabilities to NVCC flags.
-for capability in compute_capabilities:
-    num = capability[0] + capability[2]
-    if capability.startswith("8.0"):
-        HAS_SM80 = True
-        num = "80"
-        CXX_FLAGS += ["-DHAS_SM80"]
-    elif capability.startswith("8.6"):
-        HAS_SM86 = True
-        num = "86"
-        CXX_FLAGS += ["-DHAS_SM86"]
-    elif capability.startswith("8.7"):
-        HAS_SM87 = True
-        num = "87"
-        CXX_FLAGS += ["-DHAS_SM87"]
-    elif capability.startswith("8.9"):
-        HAS_SM89 = True
-        num = "89"
-        CXX_FLAGS += ["-DHAS_SM89"]
-    elif capability.startswith("9.0"):
-        num = '90a'
-        HAS_SM90 = True
-        CXX_FLAGS += ["-DHAS_SM90"]
-    elif capability.startswith("10.0"):
-        HAS_SM100 = True
-        num = "100"
-        CXX_FLAGS += ["-DHAS_SM100"]
-    elif capability.startswith("10.1"):
-        HAS_SM101 = True
-        num = "101"
-        CXX_FLAGS += ["-DHAS_SM101"]
-    elif capability.startswith("11.0"):
-        HAS_SM110 = True
-        num = "110"
-        CXX_FLAGS += ["-DHAS_SM110"]
-    elif capability.startswith("12.0"):
-        HAS_SM120 = True
-        num = "120" # need to use sm120a to use mxfp8/mxfp4/nvfp4 instructions.
-        CXX_FLAGS += ["-DHAS_SM120"]
-    NVCC_FLAGS += ["-gencode", f"arch=compute_{num},code=sm_{num}"]
-    if capability.endswith("+PTX"):
-        NVCC_FLAGS += ["-gencode", f"arch=compute_{num},code=compute_{num}"]
-
-ext_modules = []
-
-run_instantiations("csrc/qattn/instantiations_sm80")
-run_instantiations("csrc/qattn/instantiations_sm89")
-run_instantiations("csrc/qattn/instantiations_sm90")
-
-sources = [
-    "csrc/qattn/pybind.cpp",
-    "csrc/qattn/qk_int_sv_f16_cuda_sm80.cu",
-    "csrc/qattn/qk_int_sv_f8_cuda_sm89.cu",
-] + get_instantiations("csrc/qattn/instantiations_sm80") + get_instantiations("csrc/qattn/instantiations_sm89")
-
-if HAS_SM90:
-    sources += ["csrc/qattn/qk_int_sv_f8_cuda_sm90.cu", ]
-    sources += get_instantiations("csrc/qattn/instantiations_sm90")
-
-qattn_extension = CUDAExtension(
-    name="spas_sage_attn._qattn",
-    sources=sources,
-    extra_compile_args={
-        "cxx": CXX_FLAGS,
-        "nvcc": NVCC_FLAGS,
-    },
-    extra_link_args=['-lcuda'],
-)
-ext_modules.append(qattn_extension)
-
-fused_extension = CUDAExtension(
-    name="spas_sage_attn._fused",
-    sources=["csrc/fused/pybind.cpp", "csrc/fused/fused.cu"],
-    extra_compile_args={
-        "cxx": CXX_FLAGS,
-        "nvcc": NVCC_FLAGS,
-    },
-)
-ext_modules.append(fused_extension)
-
+# Настройка пакета
 setup(
-    name='spas_sage_attn', 
-    version='0.1.0',  
-    author='Jintao Zhang, Chendong Xiang, Haofeng Huang',  
-    author_email='jt-zhang6@gmail.com', 
-    packages=find_packages(),  
-    description='Accurate and efficient Sparse SageAttention.',  
-    long_description=open('README.md', encoding='utf-8').read(),  
-    long_description_content_type='text/markdown', 
-    url='https://github.com/thu-ml/SpargeAttn', 
-    license='BSD 3-Clause License', 
-    python_requires='>=3.9', 
-    classifiers=[  
-        'Development Status :: 3 - Alpha', 
-        'Intended Audience :: Developers',  
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 3', 
+    name='spas_sage_attn',                         # Имя пакета
+    version=get_version(),                         # Версия пакета
+    description='Universal sparse attention for Windows',  # Краткое описание
+    long_description=long_description,             # Полное описание из README
+    long_description_content_type='text/markdown', # Тип разметки описания
+    author='SpargeAttn team',                      # Автор
+    author_email='',                               # Email автора
+    url='https://github.com/StarCheater/SpargeAttn-for-windows',  # URL проекта
+    license='Apache 2.0',                         # Лицензия
+    packages=find_packages(),                      # Автоматический поиск пакетов
+    python_requires='>=3.9',                      # Минимальная версия Python
+    install_requires=[                             # Зависимости
+        'torch>=2.3.0',                           # PyTorch с CUDA поддержкой
+        'ninja',                                   # Система сборки Ninja
+        'packaging',                               # Утилиты для работы с версиями
+        'pybind11>=2.12.0',                       # Привязки C++ к Python
+    ],
+    ext_modules=ext_modules,                       # CUDA расширения
+    cmdclass={                                     # Кастомные команды сборки
+        'build_ext': BuildExtension                # Использование PyTorch BuildExtension
+    },
+    zip_safe=False,                                # Пакет не может быть запущен из ZIP
+    classifiers=[                                  # Классификаторы PyPI
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
-        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3.12',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
-    ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtension},
+    keywords='attention sparse cuda pytorch machine learning',  # Ключевые слова
 )
