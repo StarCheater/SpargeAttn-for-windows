@@ -61,16 +61,18 @@ jobs:
       - name: Install Python dependencies
         shell: pwsh
         run: |
-          echo "test"
+          python -m pip install --upgrade pip 
+            pip install setuptools wheel ninja cibuildwheel packaging pybind11
+            pip install torch==2.4.0+cu124 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+            pip install triton-windows
           
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
-      - name: Install Python dependencies
-        shell: pwsh
-        run: echo "test2"
+      - name: Install Python requirements
+        run: pip install -r requirements.txt
           
       - name: Build wheels with cibuildwheel
         uses: pypa/cibuildwheel@v2.19.0
@@ -79,7 +81,8 @@ jobs:
           CIBW_BUILD: "cp39-*"
           CIBW_SKIP: "*-win32"
           CIBW_ARCHS_WINDOWS: "AMD64"
-          CIBW_BUILD_VERBOSITY: "1"
+          CIBW_BUILD_VERBOSITY: "3"
+          CIBW_DEBUG_TRACEBACK: "TRUE"
           CIBW_DEPENDENCY_VERSIONS: "latest"
           CIBW_ENVIRONMENT_WINDOWS: >
             DISTUTILS_USE_SDK=1
