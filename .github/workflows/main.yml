@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          
+    
       - name: Setup MSVC
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
@@ -57,19 +57,23 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip' # caching pip dependencies
+          cache-dependency-path: |
+            '**/requirements.txt'
+            setup.py
+          
+      - uses: actions/cache@v4.2.3
+        with:
+          path: ${{ env.LOCALAPPDATA }}\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}  
           
       - name: Install Python dependencies
-        shell: pwsh
+        #shell: pwsh
         run: |
           python -m pip install --upgrade pip 
             pip install setuptools wheel ninja cibuildwheel==3.0.0 packaging pybind11
             pip install torch==2.4.0+cu124 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
             pip install triton-windows
-          
-      - uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Install Python requirements
         run: pip install -r requirements.txt
@@ -81,7 +85,7 @@ jobs:
           CIBW_BUILD: "cp39-*"
           CIBW_SKIP: "*-win32"
           CIBW_ARCHS_WINDOWS: "AMD64"
-          CIBW_BUILD_VERBOSITY: "3"
+          CIBW_BUILD_VERBOSITY: "1"
           CIBW_DEBUG_TRACEBACK: "TRUE"
           CIBW_DEPENDENCY_VERSIONS: "latest"
           CIBW_ENVIRONMENT_WINDOWS: >
@@ -91,16 +95,8 @@ jobs:
             SPARGEATTN_WHEEL_VERSION_SUFFIX="+cu124+torch2.4.0"
             CUDA_HOME="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
             CUDA_PATH="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
-          CIBW_BEFORE_BUILD_WINDOWS: >
-            python -m pip install --upgrade pip &&
-            pip install setuptools wheel ninja cibuildwheel packaging pybind11 &&
-            pip install torch==2.4.0+cu124 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 &&
-            pip install triton-windows &&
-            pip install -r requirements.txt &&
-            echo "CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV &&
-            echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV
-          CIBW_BUILD_FRONTEND: "pip"
-          CIBW_BUILD_FRONTEND_ARGS: "--no-build-isolation"
+          #CIBW_BUILD_FRONTEND: "pip"
+          #CIBW_BUILD_FRONTEND_ARGS: "--no-build-isolation"
           CIBW_TEST_COMMAND: >
             python -c "import spas_sage_attn; print('SpargeAttn import successful')"
 
