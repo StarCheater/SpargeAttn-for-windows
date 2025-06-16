@@ -1,6 +1,7 @@
 [build-system]
 requires = [
     "setuptools>=61.0",      # современный setuptools с поддержкой PEP 660
+    "torch>=2.3.0",
     "wheel",                 # для сборки wheel-пакетов
     "ninja",                 # ускорение компиляции C++/CUDA кода
     "packaging",             # работа с версиями и зависимостями
