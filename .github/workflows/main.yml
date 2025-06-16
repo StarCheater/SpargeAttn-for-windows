@@ -65,7 +65,14 @@ jobs:
           pip install setuptools wheel ninja cibuildwheel packaging pybind11
           pip install torch==2.4.0+cu124 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
           pip install triton-windows
-          pip install -r requirements.txt
+          
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
           
       - name: Build wheels with cibuildwheel
         uses: pypa/cibuildwheel@v2.19.0
@@ -84,7 +91,8 @@ jobs:
           CIBW_BEFORE_BUILD_WINDOWS: >
             echo "CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV &&
             echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV
-          CIBW_BUILD_FRONTEND: "pip; args=--no-build-isolation"
+            CIBW_BUILD_FRONTEND: "pip"
+            CIBW_BUILD_FRONTEND_ARGS: "--no-build-isolation"
           CIBW_TEST_COMMAND: >
             python -c "import spas_sage_attn; print('SpargeAttn import successful')"
 
