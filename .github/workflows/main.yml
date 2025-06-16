@@ -91,8 +91,8 @@ jobs:
           CIBW_BEFORE_BUILD_WINDOWS: >
             echo "CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV &&
             echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4" >> $GITHUB_ENV
-            CIBW_BUILD_FRONTEND: "pip"
-            CIBW_BUILD_FRONTEND_ARGS: "--no-build-isolation"
+          CIBW_BUILD_FRONTEND: "pip"
+          CIBW_BUILD_FRONTEND_ARGS: "--no-build-isolation"
           CIBW_TEST_COMMAND: >
             python -c "import spas_sage_attn; print('SpargeAttn import successful')"
 
