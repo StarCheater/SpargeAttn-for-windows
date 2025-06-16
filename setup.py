@@ -1,160 +1,91 @@
 import os
 import sys
-import platform
 import warnings
 from pathlib import Path
 
 from setuptools import setup, find_packages
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-# Определение платформы для условной компиляции
+# Определение платформы
 IS_WINDOWS = sys.platform == 'win32'
 
-# Получение версии пакета из переменной окружения или файла
+# Получение версии пакета
 def get_version():
-    version = '1.0.0'
+    base = '1.0.0'
     suffix = os.environ.get("SPARGEATTN_WHEEL_VERSION_SUFFIX", "")
-    return version + suffix
+    return base + suffix
 
-# Проверка наличия CUDA
-if CUDA_HOME is None:
-    raise RuntimeError("CUDA_HOME environment variable is not set. Please install CUDA toolkit.")
+# Проверка и подхват CUDA_HOME
+cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
+if not cuda_home:
+    warnings.warn("CUDA_HOME не задан — сборка будет без CUDA", stacklevel=2)
 
-# Условные флаги компилятора для C++ с подавлением D9025
+# Флаги для C++ компилятора
 if IS_WINDOWS:
-    # Флаги MSVC для Windows с подавлением предупреждений
-    CXX_FLAGS = [
-        '/std:c++17',      # Стандарт C++17
-        '/O2',             # Оптимизация уровня 2
-        '/MD',             # Многопоточная DLL среда выполнения
-        '/EHsc',           # Обработка исключений C++
-        '/DNOMINMAX',      # Отключение макросов min/max
-        '/W0',             # Подавление всех предупреждений (избегает D9025)
-    ]
-    LINK_FLAGS = []
+    CXX_FLAGS = ['/std:c++17', '/O2', '/MD', '/EHsc']  # MSVC: стандарт, оптимизация, DLL, исключения[1]
 else:
-    # Флаги GCC/Clang для Linux/Mac
-    CXX_FLAGS = [
-        '-std=c++17',      # Стандарт C++17
-        '-O3',             # Максимальная оптимизация
-        '-fopenmp',        # Поддержка OpenMP
-        '-w',              # Подавление всех предупреждений
-    ]
-    LINK_FLAGS = ['-lgomp']
+    CXX_FLAGS = ['-std=c++17', '-O3']  # GCC/Clang: стандарт, оптимизация[2]
 
-# Базовые флаги NVCC с подавлением #177-D
+# Флаги NVCC: стандарт, оптимизация, fast math, подавление предупреждений[3]
 NVCC_FLAGS = [
-    '-std=c++17',                      # Стандарт C++17 для CUDA
-    '-O3',                             # Максимальная оптимизация
-    '-U__CUDA_NO_HALF_OPERATORS__',    # Разрешение half-операторов
-    '-U__CUDA_NO_HALF_CONVERSIONS__',  # Разрешение half-конверсий
-    '--use_fast_math',                 # Быстрые математические функции
-    '--expt-relaxed-constexpr',        # Экспериментальная поддержка constexpr
-    '--diag-suppress=177',             # Подавление предупреждения #177-D
-    '-w',                              # Подавление всех NVCC предупреждений
+    '-std=c++17', '-O3', '--use_fast_math',
+    '--expt-relaxed-constexpr', '--diag-suppress=177', '-w'
 ]
+# Архитектуры CUDA из окружения
+archs = os.environ.get('TORCH_CUDA_ARCH_LIST', '8.0;8.6;8.9;9.0').split(';')
+for a in archs:
+    num = a.replace('.', '')
+    NVCC_FLAGS += ['-gencode', f'arch=compute_{num},code=sm_{num}']
 
-# Определение compute capabilities из переменной окружения
-arch_list = os.environ.get('TORCH_CUDA_ARCH_LIST', '8.0;8.6;8.9;9.0')
-if arch_list:
-    for arch in arch_list.split(';'):
-        arch_clean = arch.replace('.', '')
-        NVCC_FLAGS.extend([
-            '-gencode', f'arch=compute_{arch_clean},code=sm_{arch_clean}'
-        ])
-
-# Добавление флагов для verbose вывода и отладки (с подавлением предупреждений)
-if IS_WINDOWS:
-    import multiprocessing
-    num_threads = min(multiprocessing.cpu_count(), 8)
-    NVCC_FLAGS.extend([
-        f'--threads={num_threads}',    # Количество потоков компиляции
-    ])
-else:
-    NVCC_FLAGS.extend([
-        '--threads=8',
-    ])
-
-# Поиск исходных файлов проекта
-sources = []
+# Сбор исходных файлов
 csrc_dir = Path(__file__).parent / 'csrc'
-
-# Добавление C++ исходных файлов
-cpp_files = list(csrc_dir.glob('*.cpp'))
-sources.extend([str(f) for f in cpp_files])
-
-# Добавление CUDA исходных файлов
-cu_files = list(csrc_dir.glob('*.cu'))
-sources.extend([str(f) for f in cu_files])
-
-# Проверка наличия исходных файлов
+sources = [str(p) for ext in ('*.cpp','*.cu') for p in csrc_dir.glob(ext)]
 if not sources:
-    warnings.warn("No source files found in csrc directory")
-    sources = ['csrc/dummy.cpp']  # Создание заглушки если файлы не найдены
+    warnings.warn("csrc пуст — добавлена заглушка", stacklevel=2)
+    sources = ['csrc/dummy.cpp']
 
-# Создание CUDA расширения
-ext_modules = [
-    CUDAExtension(
-        name='spas_sage_attn._C',      # Имя модуля расширения
-        sources=sources,               # Список исходных файлов
-        include_dirs=[                 # Директории заголовочных файлов
-            str(csrc_dir),
-            str(Path(__file__).parent / 'spas_sage_attn')
-        ],
-        extra_compile_args={           # Дополнительные флаги компиляции
-            'cxx': CXX_FLAGS,          # Флаги для C++ компилятора
-            'nvcc': NVCC_FLAGS         # Флаги для NVCC компилятора
-        },
-        extra_link_args=LINK_FLAGS,    # Флаги линковки
-        define_macros=[                # Макросы препроцессора
-            ('WITH_CUDA', None),       # Включение CUDA поддержки
-            ('TORCH_EXTENSION_NAME', 'spas_sage_attn._C')
-        ]
+# Определение расширения
+ext_modules = []
+if cuda_home:
+    ext_modules.append(
+        CUDAExtension(
+            name='spas_sage_attn._C',
+            sources=sources,
+            include_dirs=[str(csrc_dir), str(Path(__file__).parent / 'spas_sage_attn')],
+            extra_compile_args={'cxx': CXX_FLAGS, 'nvcc': NVCC_FLAGS},
+            define_macros=[('WITH_CUDA', None)]
+        )
     )
-]
+else:
+    warnings.warn("CUDAExtension не добавлен — только Python пакеты", stacklevel=2)
 
-# Чтение README файла для описания пакета
-readme_path = Path(__file__).parent / 'README.md'
-long_description = ''
-if readme_path.exists():
-    with open(readme_path, 'r', encoding='utf-8') as f:
-        long_description = f.read()
+# Чтение README
+readme = Path(__file__).parent / 'README.md'
+long_desc = readme.read_text(encoding='utf-8') if readme.exists() else ''
 
-# Настройка пакета
+# Настройка setup()
 setup(
-    name='spas_sage_attn',                         # Имя пакета
-    version=get_version(),                         # Версия пакета
-    description='Universal sparse attention for Windows',  # Краткое описание
-    long_description=long_description,             # Полное описание из README
-    long_description_content_type='text/markdown', # Тип разметки описания
-    author='SpargeAttn team',                      # Автор
-    author_email='',                               # Email автора
-    url='https://github.com/StarCheater/SpargeAttn-for-windows',  # URL проекта
-    license='Apache 2.0',                         # Лицензия
-    packages=find_packages(),                      # Автоматический поиск пакетов
-    python_requires='>=3.9',                      # Минимальная версия Python
-    install_requires=[                             # Зависимости
-        'torch>=2.3.0',                           # PyTorch с CUDA поддержкой
-        'ninja',                                   # Система сборки Ninja
-        'packaging',                               # Утилиты для работы с версиями
-        'pybind11>=2.12.0',                       # Привязки C++ к Python
+    name='spas_sage_attn',
+    version=get_version(),
+    description='Universal sparse attention for Windows',
+    long_description=long_desc,
+    long_description_content_type='text/markdown',
+    author='SpargeAttn team',
+    url='https://github.com/StarCheater/SpargeAttn-for-windows',
+    license='Apache-2.0',
+    packages=find_packages(),
+    python_requires='>=3.9',
+    install_requires=[
+        'torch>=2.4.0+cu124', 'ninja', 'packaging', 'pybind11>=2.12.0'
     ],
-    ext_modules=ext_modules,                       # CUDA расширения
-    cmdclass={                                     # Кастомные команды сборки
-        'build_ext': BuildExtension                # Использование PyTorch BuildExtension
-    },
-    zip_safe=False,                                # Пакет не может быть запущен из ZIP
-    classifiers=[                                  # Классификаторы PyPI
+    ext_modules=ext_modules,
+    cmdclass={'build_ext': BuildExtension},
+    zip_safe=False,
+    classifiers=[
         'Development Status :: 4 - Beta',
-        'Intended Audience :: Developers',
-        'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.12',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Operating System :: Microsoft :: Windows',
+        'License :: OSI Approved :: Apache Software License'
     ],
-    keywords='attention sparse cuda pytorch machine learning',  # Ключевые слова
+    keywords='attention sparse cuda pytorch machine learning'
 )
