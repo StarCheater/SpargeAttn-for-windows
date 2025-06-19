@@ -12,7 +12,7 @@ IS_WINDOWS = sys.platform == 'win32'
 # Получение версии пакета
 def get_version():
     base = '1.0.0'
-    suffix = os.environ.get("SPARGEATTN_WHEEL_VERSION_SUFFIX", "")
+    suffix = os.environ.get("SPARGEATTN_WHEEL_VERSION_SUFFIX", "_")
     return base + suffix
 
 # Проверка и подхват CUDA_HOME
