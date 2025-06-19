@@ -18,7 +18,7 @@ def get_version():
 # Проверка и подхват CUDA_HOME
 cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
 if not cuda_home:
-    warnings.warn("CUDA_HOME не задан — сборка будет без CUDA", stacklevel=2)
+    warnings.warn("CUDA_HOME not set — сборка будет без CUDA", stacklevel=2)
 
 # Флаги для C++ компилятора
 if IS_WINDOWS:
@@ -41,7 +41,7 @@ for a in archs:
 csrc_dir = Path(__file__).parent / 'csrc'
 sources = [str(p) for ext in ('*.cpp','*.cu') for p in csrc_dir.glob(ext)]
 if not sources:
-    warnings.warn("csrc пуст — добавлена заглушка", stacklevel=2)
+    warnings.warn("csrc is empty — добавлена заглушка", stacklevel=2)
     sources = ['csrc/dummy.cpp']
 
 # Определение расширения
@@ -57,7 +57,7 @@ if cuda_home:
         )
     )
 else:
-    warnings.warn("CUDAExtension не добавлен — только Python пакеты", stacklevel=2)
+    warnings.warn("CUDAExtension not added — only Python packages", stacklevel=2)
 
 # Чтение README
 readme = Path(__file__).parent / 'README.md'
@@ -66,7 +66,7 @@ long_desc = readme.read_text(encoding='utf-8') if readme.exists() else ''
 # Настройка setup()
 setup(
     name='spas_sage_attn',
-    version=get_version(),
+    version='1.0.0'#get_version(),
     description='Universal sparse attention for Windows',
     long_description=long_desc,
     long_description_content_type='text/markdown',
@@ -80,12 +80,12 @@ setup(
     ],
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension},
-    zip_safe=False,
-    classifiers=[
-        'Development Status :: 4 - Beta',
-        'Programming Language :: Python :: 3.9',
-        'Operating System :: Microsoft :: Windows',
-        'License :: OSI Approved :: Apache Software License'
-    ],
-    keywords='attention sparse cuda pytorch machine learning'
+    #zip_safe=False,
+    #classifiers=[
+    #    'Development Status :: 4 - Beta',
+    #    'Programming Language :: Python :: 3.9',
+    #    'Operating System :: Microsoft :: Windows',
+    #    'License :: OSI Approved :: Apache Software License'
+    #],
+    #keywords='attention sparse cuda pytorch machine learning'
 )
