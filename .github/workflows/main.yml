@@ -30,7 +30,7 @@ jobs:
 
       # 4. Установка CUDA 12.4
       - name: Install CUDA Toolkit 12.4
-        uses: Jimver/cuda-toolkit@v0.2.24  # action для установки CUDA [4]
+        uses: Jimver/cuda-toolkit@v0.2.22  # action для установки CUDA [4]
         with:
           cuda: 12.4.0
           sub-packages: '["nvcc","cudart","cublas","curand","cusparse","cufft","thrust"]'
