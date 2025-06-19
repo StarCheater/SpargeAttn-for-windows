@@ -66,7 +66,7 @@ long_desc = readme.read_text(encoding='utf-8') if readme.exists() else ''
 # Настройка setup()
 setup(
     name='spas_sage_attn',
-    version='1.0.0'#get_version(),
+    version='1.0.0',#get_version(),
     description='Universal sparse attention for Windows',
     long_description=long_desc,
     long_description_content_type='text/markdown',
