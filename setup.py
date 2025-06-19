@@ -76,7 +76,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.9',
     install_requires=[
-        'torch>=2.4.0+cu124', 'ninja', 'packaging', 'pybind11>=2.12.0'
+        'torch==2.4.0+cu124', 'ninja', 'packaging', 'pybind11'
     ],
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension},
