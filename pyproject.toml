@@ -10,41 +10,41 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"  # backend для PEP 517/518
 
-[project]
-name = "spas_sage_attn"                           # имя пакета на PyPI
-version = "1.0.0" #{attr = "spas_sage_attn.0"}   # получение версии из кода
-description = "Universal sparse attention for accelerating inference without additional training"  # краткое описание
-readme = "README.md"                              # путь к длинному описанию
-readme-content-type = "text/markdown"
-requires-python = ">=3.9"                         # поддерживаемые Python версии
-authors = [{name = "SpargeAttn team"}]            # информация об авторах
-license = {text = "Apache-2.0"}                   # тип лицензии
+#[project]
+#name = "spas_sage_attn"                           # имя пакета на PyPI
+#version = "1.0.0" #{attr = "spas_sage_attn.0"}   # получение версии из кода
+#description = "Universal sparse attention for accelerating inference without additional training"  # краткое описание
+#readme = "README.md"                              # путь к длинному описанию
+#readme-content-type = "text/markdown"
+#requires-python = ">=3.9"                         # поддерживаемые Python версии
+#authors = [{name = "SpargeAttn team"}]            # информация об авторах
+#license = {text = "Apache-2.0"}                   # тип лицензии
 
-dependencies = [
-    "torch>=2.3.0",           # ядро проекта: PyTorch с CUDA поддержкой
-    "ninja",                  # ускорение сборки
-    "packaging",              # утилиты для работы с версиями
-    "pybind11>=2.12.0",       # привязки C++ к Python
-]
-keywords = [
-    "attention", "sparse", "cuda",
-    "pytorch", "machine learning"
-]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
-]
+#dependencies = [
+#    "torch>=2.3.0",           # ядро проекта: PyTorch с CUDA поддержкой
+#    "ninja",                  # ускорение сборки
+#    "packaging",              # утилиты для работы с версиями
+#    "pybind11>=2.12.0",       # привязки C++ к Python
+#]
+#keywords = [
+#    "attention", "sparse", "cuda",
+#    "pytorch", "machine learning"
+#]
+#classifiers = [
+#    "Development Status :: 4 - Beta",
+#    "Intended Audience :: Developers",
+#    "License :: OSI Approved :: Apache Software License",
+#    "Programming Language :: Python :: 3.9",
+#    "Programming Language :: Python :: 3.10",
+#    "Programming Language :: Python :: 3.11",
+#    "Programming Language :: Python :: 3.12",
+#    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+#]
 
-[project.urls]
-Homepage   = "https://github.com/StarCheater/SpargeAttn-for-windows"   # главная страница проекта
-Repository = "https://github.com/StarCheater/SpargeAttn-for-windows"   # репозиторий
-Issues     = "https://github.com/StarCheater/SpargeAttn-for-windows/issues"  # трекер задач
+#[project.urls]
+#Homepage   = "https://github.com/StarCheater/SpargeAttn-for-windows"   # главная страница проекта
+#Repository = "https://github.com/StarCheater/SpargeAttn-for-windows"   # репозиторий
+#Issues     = "https://github.com/StarCheater/SpargeAttn-for-windows/issues"  # трекер задач
 
-[tool.setuptools.packages.find]
-include = ["spas_sage_attn*", "csrc*"]   # автоматический поиск Python-пакетов и C++-модулей
+#[tool.setuptools.packages.find]
+#include = ["spas_sage_attn*", "csrc*"]   # автоматический поиск Python-пакетов и C++-модулей
