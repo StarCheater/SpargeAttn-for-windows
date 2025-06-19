@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"  # backend для PEP 517/518
 
 [project]
 name = "spas_sage_attn"                           # имя пакета на PyPI
-version = {attr = "spas_sage_attn.__version__"}   # получение версии из кода
+version = {attr = "spas_sage_attn.0"}   # получение версии из кода
 description = "Universal sparse attention for accelerating inference without additional training"  # краткое описание
 readme = "README.md"                              # путь к длинному описанию
 readme-content-type = "text/markdown"
